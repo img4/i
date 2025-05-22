@@ -1,0 +1,40 @@
+name: run search.py
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    permissions:
+      contents: write  # Grants write access to the repository
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: checkout repo content
+        uses: actions/checkout@v4
+
+      - name: setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.13' # install the python version needed
+
+      - name: install python packages
+        run: |
+          python -m pip install --upgrade pip
+          pip install base36 # Install only base36, as others are standard libraries
+          pip install lzstring # Add lzstring to the installed packages
+
+      - name: execute py script # run search.py
+#        env:
+#          SOME_SECRET: ${{ secrets.SOME_SECRET }}
+        run: python search.py
+
+      - name: Push it
+        run: |
+          git config --global user.name "imgbot"
+          git config --global user.email "imgbot@example.com"
+          git add search.json.lz
+          git commit -m "Update search"
+          git push  # Pushes to the default branch; ensure permissions are set
