@@ -10,10 +10,9 @@ def process_files():
     lz = lzstring.LZString()
 
     # Step 1: Check for search.json.lz and initialize low_index
-    # Changed from search.json.xz to search.json.lz
     search_file_compressed = Path("search.json.lz")
     if not search_file_compressed.exists():
-        search_data = {"index": 1, "items": {}}
+        search_data = []
         low_index = 1
     else:
         # Decompress using lzstring's decompressFromBase64
@@ -26,11 +25,21 @@ def process_files():
         if decompressed_string is None:
             # Handle cases where decompression fails (e.g., corrupted file or wrong format)
             print(f"Warning: Could not decompress {search_file_compressed}. Starting fresh.")
-            search_data = {"index": 1, "items": {}}
+            search_data = []
             low_index = 1
         else:
             search_data = json.loads(decompressed_string)
-            low_index = search_data["index"]
+            # Calculate low_index based on the highest base36-decoded id
+            low_index = 1  # Default value
+            if isinstance(search_data, list) and search_data:  # Ensure it's a non-empty list
+                try:
+                    # Decode each id from base36 (lowercase) and find the maximum
+                    max_id = max(base36.loads(item["id"].lower()) for item in search_data if "id" in item)
+                    low_index = max_id + 1  # Set low_index to max id + 1
+                except (ValueError, KeyError):
+                    print("Warning: Error decoding base36 ids or accessing 'id' keys. Using default low_index=1.")
+            else:
+                print("Warning: search_data is not a valid non-empty list. Using default low_index=1.")
 
     # Step 2: Collect filenames from images subfolders and find high_index
     high_index = 0
@@ -66,23 +75,23 @@ def process_files():
                 if p_value is not None:
                     # Decode base64 p_value
                     decoded_p = base64.b64decode(p_value).decode('utf-8')
-                    # Store in items object with base36_name as key
-                    search_data["items"][base36_name] = decoded_p
+                    # Append to search_data list
+                    search_data.append({"id": base36_name, "p": decoded_p})
         except (FileNotFoundError, json.JSONDecodeError, KeyError, base64.binascii.Error) as e:
             # print(f"Error processing file {file_path}: {e}") # Uncomment for debugging
             continue
 
-    # Step 4: Update search.json.lz with new index and items
-    search_data["index"] = high_index + 1
-
-    # Convert search_data dictionary to a JSON string
+    # Step 4: Convert search_data to a JSON string
     search_data_json_string = json.dumps(search_data)
+
+    # DEV Write the string to search.json
+    # with open("search.json", "w") as f:
+    #     f.write(json.dumps(search_data))
 
     # Compress the JSON string using lzstring's compressToBase64
     compressed_data_for_lz = lz.compressToBase64(search_data_json_string)
 
     # Write the compressed string to search.json.lz
-    # Changed from search.json.xz to search.json.lz, and opened in "w" mode for string
     with open("search.json.lz", "w") as f:
         f.write(compressed_data_for_lz)
 
